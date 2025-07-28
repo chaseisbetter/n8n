@@ -3,516 +3,777 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Local Abandoned Places Scanner</title>
+    <title>GHOST FINDER • AI Scanner</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tensorflow/4.10.0/tf.min.js"></script>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&display=swap');
+        
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
 
+        :root {
+            --neon-green: #00ff41;
+            --neon-blue: #0066ff;
+            --neon-red: #ff0066;
+            --dark-bg: #0a0a0a;
+            --dark-surface: #111111;
+            --glass: rgba(255, 255, 255, 0.05);
+            --glass-border: rgba(0, 255, 65, 0.2);
+        }
+
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%);
+            font-family: 'JetBrains Mono', monospace;
+            background: radial-gradient(circle at 20% 80%, #001122 0%, #000000 50%, #001100 100%);
+            color: var(--neon-green);
             min-height: 100vh;
-            color: white;
             overflow-x: hidden;
+            position: relative;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(circle at 10% 20%, rgba(0, 255, 65, 0.1) 0%, transparent 20%),
+                radial-gradient(circle at 80% 80%, rgba(0, 102, 255, 0.1) 0%, transparent 20%),
+                radial-gradient(circle at 40% 40%, rgba(255, 0, 102, 0.05) 0%, transparent 20%);
+            pointer-events: none;
+            z-index: -1;
         }
 
         .container {
-            max-width: 1400px;
+            max-width: 1200px;
             margin: 0 auto;
-            padding: 20px;
+            padding: 15px;
         }
 
         .header {
             text-align: center;
-            margin-bottom: 40px;
+            margin-bottom: 20px;
             position: relative;
         }
 
         .header::before {
             content: '';
             position: absolute;
-            top: -20px;
+            top: -10px;
             left: 50%;
             transform: translateX(-50%);
-            width: 120px;
-            height: 4px;
-            background: linear-gradient(90deg, #00ff88, #00d4ff);
-            border-radius: 2px;
-            animation: glow 2s ease-in-out infinite alternate;
+            width: 200px;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--neon-green), transparent);
+            animation: pulse-line 2s ease-in-out infinite;
         }
 
-        @keyframes glow {
-            from { box-shadow: 0 0 20px rgba(0, 255, 136, 0.4); }
-            to { box-shadow: 0 0 30px rgba(0, 212, 255, 0.6); }
+        @keyframes pulse-line {
+            0%, 100% { opacity: 0.5; transform: translateX(-50%) scaleX(1); }
+            50% { opacity: 1; transform: translateX(-50%) scaleX(1.2); }
         }
 
-        h1 {
-            font-size: 3.5em;
-            margin-bottom: 10px;
-            background: linear-gradient(45deg, #00ff88, #00d4ff, #ff0080);
+        .logo {
+            font-size: 2.5em;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            background: linear-gradient(45deg, var(--neon-green), var(--neon-blue));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
-            text-shadow: 0 4px 8px rgba(0,0,0,0.3);
-            animation: titleShine 3s ease-in-out infinite;
+            margin-bottom: 5px;
+            text-shadow: 0 0 20px rgba(0, 255, 65, 0.5);
+            animation: glow-text 3s ease-in-out infinite alternate;
         }
 
-        @keyframes titleShine {
-            0%, 100% { filter: brightness(1); }
-            50% { filter: brightness(1.2); }
+        @keyframes glow-text {
+            from { filter: brightness(1) drop-shadow(0 0 10px rgba(0, 255, 65, 0.5)); }
+            to { filter: brightness(1.2) drop-shadow(0 0 20px rgba(0, 255, 65, 0.8)); }
         }
 
         .subtitle {
-            font-size: 1.3em;
-            opacity: 0.9;
-            margin-bottom: 20px;
+            font-size: 0.9em;
+            opacity: 0.8;
+            letter-spacing: 2px;
+            text-transform: uppercase;
         }
 
-        .grid {
+        .main-grid {
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 30px;
-            margin-bottom: 30px;
+            grid-template-columns: 300px 1fr 280px;
+            gap: 15px;
+            margin-bottom: 15px;
         }
 
-        @media (max-width: 768px) {
-            .grid {
+        @media (max-width: 1024px) {
+            .main-grid {
                 grid-template-columns: 1fr;
+                gap: 10px;
             }
         }
 
         .panel {
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(20px);
-            border-radius: 25px;
-            padding: 30px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-            transition: all 0.3s ease;
+            background: var(--glass);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            padding: 15px;
             position: relative;
             overflow: hidden;
+            transition: all 0.3s ease;
         }
 
         .panel::before {
             content: '';
             position: absolute;
             top: 0;
-            left: 0;
-            right: 0;
-            height: 2px;
-            background: linear-gradient(90deg, transparent, #00ff88, #00d4ff, transparent);
-            animation: borderScan 3s linear infinite;
+            left: -100%;
+            width: 100%;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--neon-green), transparent);
+            animation: scan-border 4s linear infinite;
         }
 
-        @keyframes borderScan {
-            0% { transform: translateX(-100%); }
-            100% { transform: translateX(100%); }
+        @keyframes scan-border {
+            0% { left: -100%; }
+            100% { left: 100%; }
         }
 
         .panel:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 15px 40px rgba(0, 255, 136, 0.2);
+            border-color: var(--neon-green);
+            box-shadow: 0 0 20px rgba(0, 255, 65, 0.3);
+            transform: translateY(-2px);
         }
 
-        .panel h3 {
-            font-size: 1.6em;
-            margin-bottom: 20px;
+        .panel-title {
+            font-size: 0.9em;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
+            color: var(--neon-green);
         }
 
         .icon {
-            font-size: 1.3em;
-            filter: drop-shadow(0 0 10px currentColor);
+            font-size: 1.1em;
+            filter: drop-shadow(0 0 5px currentColor);
         }
 
-        button {
-            background: linear-gradient(45deg, #00ff88, #00d4ff);
-            color: #000;
-            border: none;
-            padding: 15px 30px;
-            border-radius: 15px;
-            cursor: pointer;
-            font-size: 16px;
-            font-weight: bold;
-            margin: 10px 5px;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 15px rgba(0, 255, 136, 0.3);
-            text-transform: uppercase;
-            letter-spacing: 1px;
+        /* Control Panel */
+        .control-panel {
+            height: fit-content;
         }
 
-        button:hover:not(:disabled) {
-            transform: translateY(-3px);
-            box-shadow: 0 8px 25px rgba(0, 255, 136, 0.5);
-            filter: brightness(1.1);
-        }
-
-        button:disabled {
-            background: #444;
-            color: #888;
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
-        }
-
-        .location-info {
-            background: rgba(0, 255, 136, 0.1);
-            border: 2px solid rgba(0, 255, 136, 0.3);
-            border-radius: 15px;
-            padding: 20px;
-            margin: 20px 0;
+        .location-display {
+            background: rgba(0, 255, 65, 0.1);
+            border: 1px solid rgba(0, 255, 65, 0.3);
+            border-radius: 8px;
+            padding: 12px;
+            margin: 10px 0;
             text-align: center;
+            font-size: 0.8em;
         }
 
         .coordinates {
-            font-family: 'Courier New', monospace;
-            font-size: 1.1em;
-            color: #00ff88;
-            margin: 10px 0;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--neon-green);
+            margin: 5px 0;
+            font-weight: 600;
         }
 
-        .status-indicator {
-            display: inline-block;
-            width: 15px;
-            height: 15px;
-            border-radius: 50%;
-            margin-right: 10px;
-            animation: pulse 2s infinite;
+        .btn-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin: 12px 0;
         }
 
-        .status-scanning { background-color: #00ff88; }
-        .status-analyzing { background-color: #00d4ff; }
-        .status-idle { background-color: #666; animation: none; }
-        .status-error { background-color: #ff4444; }
+        button {
+            background: linear-gradient(45deg, rgba(0, 255, 65, 0.2), rgba(0, 102, 255, 0.2));
+            color: var(--neon-green);
+            border: 1px solid var(--neon-green);
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.8em;
+            font-weight: 500;
+            font-family: inherit;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
 
-        @keyframes pulse {
-            0% { opacity: 1; box-shadow: 0 0 0 0 currentColor; }
-            70% { opacity: 0.7; box-shadow: 0 0 0 10px transparent; }
-            100% { opacity: 1; box-shadow: 0 0 0 0 transparent; }
+        button::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(0, 255, 65, 0.3), transparent);
+            transition: left 0.5s ease;
+        }
+
+        button:hover:not(:disabled)::before {
+            left: 100%;
+        }
+
+        button:hover:not(:disabled) {
+            box-shadow: 0 0 15px rgba(0, 255, 65, 0.5);
+            transform: translateY(-1px);
+        }
+
+        button:disabled {
+            background: rgba(255, 255, 255, 0.05);
+            color: #666;
+            border-color: #333;
+            cursor: not-allowed;
+        }
+
+        .metrics {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin: 12px 0;
+        }
+
+        .metric {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(0, 255, 65, 0.2);
+            border-radius: 6px;
+            padding: 8px;
+            text-align: center;
+        }
+
+        .metric-value {
+            font-size: 1.4em;
+            font-weight: 700;
+            color: var(--neon-green);
+            text-shadow: 0 0 10px rgba(0, 255, 65, 0.5);
+        }
+
+        .metric-label {
+            font-size: 0.7em;
+            opacity: 0.8;
+            text-transform: uppercase;
+        }
+
+        /* Map Panel */
+        .map-panel {
+            position: relative;
         }
 
         .map-container {
             width: 100%;
-            height: 400px;
-            border-radius: 15px;
-            background: #333;
+            height: 300px;
+            border-radius: 8px;
+            background: var(--dark-surface);
             position: relative;
             overflow: hidden;
-            border: 2px solid rgba(0, 255, 136, 0.3);
+            border: 1px solid var(--glass-border);
         }
 
         .map-overlay {
             position: absolute;
-            top: 10px;
-            left: 10px;
+            top: 8px;
+            left: 8px;
             background: rgba(0, 0, 0, 0.8);
-            padding: 10px;
-            border-radius: 8px;
-            z-index: 100;
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 0.7em;
+            z-index: 10;
         }
 
-        .scan-grid {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            opacity: 0.6;
-            pointer-events: none;
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 6px;
         }
 
-        .detection-list {
-            max-height: 400px;
-            overflow-y: auto;
-            margin: 20px 0;
+        .status-idle { background: #666; }
+        .status-scanning { 
+            background: var(--neon-green); 
+            animation: pulse-dot 1s infinite;
+        }
+        .status-error { background: var(--neon-red); }
+
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.2); }
         }
 
-        .detection-item {
-            background: rgba(255, 255, 255, 0.08);
-            border-radius: 12px;
-            padding: 15px;
-            margin: 10px 0;
-            border-left: 4px solid;
-            transition: all 0.3s ease;
+        .map-controls {
+            margin-top: 10px;
+        }
+
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.8em;
+        }
+
+        input[type="range"] {
+            flex: 1;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: var(--neon-green);
+            border-radius: 50%;
             cursor: pointer;
+            box-shadow: 0 0 10px rgba(0, 255, 65, 0.5);
         }
 
-        .detection-item:hover {
-            background: rgba(255, 255, 255, 0.12);
-            transform: translateX(5px);
-        }
-
-        .high-confidence { border-left-color: #ff4444; }
-        .medium-confidence { border-left-color: #ffaa00; }
-        .low-confidence { border-left-color: #00ff88; }
-
-        .confidence-bar {
-            width: 100%;
-            height: 6px;
-            background: rgba(255, 255, 255, 0.2);
-            border-radius: 3px;
-            overflow: hidden;
-            margin: 8px 0;
-        }
-
-        .confidence-fill {
-            height: 100%;
-            border-radius: 3px;
-            transition: width 0.5s ease;
+        /* Scanner Panel */
+        .scanner-panel {
+            height: fit-content;
         }
 
         .progress-ring {
-            width: 120px;
-            height: 120px;
-            margin: 20px auto;
+            width: 80px;
+            height: 80px;
+            margin: 15px auto;
             position: relative;
         }
 
-        .progress-ring-circle {
+        .progress-ring svg {
+            transform: rotate(-90deg);
+        }
+
+        .progress-ring-bg {
             fill: none;
-            stroke: rgba(255, 255, 255, 0.2);
-            stroke-width: 8;
+            stroke: rgba(255, 255, 255, 0.1);
+            stroke-width: 6;
         }
 
         .progress-ring-progress {
             fill: none;
-            stroke: #00ff88;
-            stroke-width: 8;
+            stroke: var(--neon-green);
+            stroke-width: 6;
             stroke-linecap: round;
-            transform: rotate(-90deg);
-            transform-origin: 50% 50%;
             transition: stroke-dashoffset 0.3s ease;
+            filter: drop-shadow(0 0 5px rgba(0, 255, 65, 0.5));
         }
 
-        .radar-sweep {
-            width: 200px;
-            height: 200px;
-            margin: 20px auto;
-            position: relative;
-            border: 2px solid rgba(0, 255, 136, 0.3);
+        .progress-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 0.9em;
+            font-weight: 600;
+        }
+
+        .scan-tiles {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 2px;
+            margin: 10px 0;
+        }
+
+        .scan-tile {
+            aspect-ratio: 1;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            transition: all 0.3s ease;
+        }
+
+        .scan-tile.scanning {
+            background: rgba(0, 255, 65, 0.3);
+            border-color: var(--neon-green);
+            animation: tile-scan 1s infinite;
+        }
+
+        .scan-tile.detected {
+            background: rgba(255, 0, 102, 0.5);
+            border-color: var(--neon-red);
+            box-shadow: 0 0 8px rgba(255, 0, 102, 0.5);
+        }
+
+        @keyframes tile-scan {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; }
+        }
+
+        /* Detection Results */
+        .results-panel {
+            grid-column: 1 / -1;
+            max-height: 250px;
+        }
+
+        .detection-list {
+            max-height: 200px;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: var(--neon-green) transparent;
+        }
+
+        .detection-list::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .detection-list::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .detection-list::-webkit-scrollbar-thumb {
+            background: var(--neon-green);
+            border-radius: 3px;
+        }
+
+        .detection-item {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            padding: 10px;
+            margin: 8px 0;
+            border-left: 3px solid;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.8em;
+        }
+
+        .detection-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+            transform: translateX(3px);
+        }
+
+        .high-confidence { border-left-color: var(--neon-red); }
+        .medium-confidence { border-left-color: #ffaa00; }
+        .low-confidence { border-left-color: var(--neon-green); }
+
+        .detection-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+
+        .detection-type {
+            font-weight: 600;
+            color: var(--neon-green);
+        }
+
+        .detection-distance {
+            font-size: 0.9em;
+            opacity: 0.8;
+        }
+
+        .confidence-bar {
+            width: 100%;
+            height: 3px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            overflow: hidden;
+            margin: 4px 0;
+        }
+
+        .confidence-fill {
+            height: 100%;
+            border-radius: 2px;
+            transition: width 0.5s ease;
+        }
+
+        /* Log Panel */
+        .log-panel {
+            grid-column: 1 / -1;
+            max-height: 150px;
+        }
+
+        .log-container {
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 6px;
+            padding: 10px;
+            font-size: 0.7em;
+            max-height: 120px;
+            overflow-y: auto;
+            line-height: 1.4;
+            scrollbar-width: thin;
+            scrollbar-color: var(--neon-green) transparent;
+        }
+
+        .log-container::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .log-container::-webkit-scrollbar-thumb {
+            background: var(--neon-green);
+            border-radius: 2px;
+        }
+
+        /* Radar Animation */
+        .radar {
+            width: 60px;
+            height: 60px;
+            margin: 10px auto;
+            border: 2px solid rgba(0, 255, 65, 0.3);
             border-radius: 50%;
-            background: radial-gradient(circle, rgba(0, 255, 136, 0.1), transparent);
+            position: relative;
+            background: radial-gradient(circle, rgba(0, 255, 65, 0.1), transparent);
         }
 
         .radar-line {
             position: absolute;
             top: 50%;
             left: 50%;
-            width: 2px;
+            width: 1px;
             height: 50%;
-            background: linear-gradient(to bottom, #00ff88, transparent);
+            background: linear-gradient(to bottom, var(--neon-green), transparent);
             transform-origin: bottom center;
-            animation: radarSweep 3s linear infinite;
+            animation: radar-sweep 2s linear infinite;
         }
 
-        @keyframes radarSweep {
+        @keyframes radar-sweep {
             0% { transform: translate(-50%, -100%) rotate(0deg); }
             100% { transform: translate(-50%, -100%) rotate(360deg); }
         }
 
-        .log-container {
-            background: rgba(0, 0, 0, 0.6);
+        /* Modal Styles */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: linear-gradient(135deg, var(--dark-surface), var(--dark-bg));
             border-radius: 12px;
-            padding: 20px;
-            font-family: 'Courier New', monospace;
-            font-size: 13px;
-            max-height: 300px;
-            overflow-y: auto;
-            margin: 20px 0;
-            border: 1px solid rgba(0, 255, 136, 0.2);
-        }
-
-        .full-width {
-            grid-column: 1 / -1;
-        }
-
-        .metrics-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-            gap: 15px;
-            margin: 20px 0;
-        }
-
-        .metric-card {
-            background: rgba(255, 255, 255, 0.05);
-            padding: 20px;
-            border-radius: 15px;
+            padding: 25px;
+            border: 2px solid var(--neon-green);
+            box-shadow: 0 10px 30px rgba(0, 255, 65, 0.3);
+            max-width: 450px;
+            width: 90%;
+            color: var(--neon-green);
             text-align: center;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            transition: all 0.3s ease;
         }
 
-        .metric-card:hover {
-            background: rgba(255, 255, 255, 0.1);
-            box-shadow: 0 5px 15px rgba(0, 255, 136, 0.2);
+        .modal h3 {
+            margin-bottom: 15px;
+            font-size: 1.2em;
         }
 
-        .metric-value {
-            font-size: 2.2em;
-            font-weight: bold;
+        .modal input {
+            width: 100%;
+            padding: 8px;
+            margin: 8px 0;
+            border: 1px solid var(--neon-green);
+            border-radius: 4px;
+            background: rgba(0, 0, 0, 0.5);
+            color: var(--neon-green);
+            font-family: inherit;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 15px;
+        }
+
+        .quick-locations {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            justify-content: center;
             margin: 10px 0;
-            background: linear-gradient(45deg, #00ff88, #00d4ff);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
         }
 
-        .metric-label {
-            font-size: 0.9em;
-            opacity: 0.8;
-            text-transform: uppercase;
-            letter-spacing: 1px;
+        .quick-btn {
+            padding: 4px 8px;
+            font-size: 0.7em;
+            margin: 2px;
         }
 
-        .satellite-tile {
-            width: 100px;
-            height: 100px;
-            border-radius: 8px;
-            margin: 5px;
-            border: 2px solid rgba(255, 255, 255, 0.2);
-            transition: all 0.3s ease;
-            cursor: pointer;
+        /* Responsive */
+        @media (max-width: 768px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .logo {
+                font-size: 2em;
+            }
+            
+            .metrics {
+                grid-template-columns: repeat(4, 1fr);
+            }
+            
+            .scan-tiles {
+                grid-template-columns: repeat(6, 1fr);
+            }
         }
 
-        .satellite-tile:hover {
-            border-color: #00ff88;
-            box-shadow: 0 0 15px rgba(0, 255, 136, 0.4);
+        /* Animation keyframes */
+        @keyframes matrix-rain {
+            0% { transform: translateY(-100%); opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { transform: translateY(100vh); opacity: 0; }
         }
 
-        .scanning { border-color: #00d4ff; animation: scanPulse 2s infinite; }
-        .detected { border-color: #ff4444; box-shadow: 0 0 15px rgba(255, 68, 68, 0.6); }
-
-        @keyframes scanPulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-
-        .indicators-list {
+        .matrix-char {
+            position: fixed;
+            color: var(--neon-green);
+            font-family: 'JetBrains Mono', monospace;
             font-size: 0.8em;
-            opacity: 0.8;
-            margin: 10px 0;
-            list-style: none;
-            padding: 0;
-        }
-
-        .indicators-list li {
-            margin: 3px 0;
-            padding: 2px 0;
-            color: #00ff88;
-        }
-
-        .indicators-list li::before {
-            content: "• ";
-            color: #00d4ff;
+            animation: matrix-rain 3s linear infinite;
+            pointer-events: none;
+            z-index: -1;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>🛰️ Local Area Scanner</h1>
-            <p class="subtitle">AI-Powered Abandoned Places Detection Near Your Location</p>
+            <div class="logo">👻 GHOST FINDER</div>
+            <div class="subtitle">AI-Powered Abandoned Site Scanner</div>
         </div>
 
-        <div class="grid">
-            <div class="panel">
-                <h3><span class="icon">📍</span>Location & Scan Control</h3>
+        <div class="main-grid">
+            <!-- Control Panel -->
+            <div class="panel control-panel">
+                <div class="panel-title">
+                    <span class="icon">🎯</span>
+                    LOCATION CONTROL
+                </div>
                 
-                <div class="location-info" id="locationInfo">
-                    <p><strong>📡 Waiting for location access...</strong></p>
-                    <p>Click "Get My Location" to start scanning nearby areas</p>
+                <div class="location-display" id="locationInfo">
+                    <div>📡 AWAITING GPS SIGNAL</div>
+                    <div style="font-size: 0.9em; opacity: 0.8; margin-top: 5px;">
+                        Click button to acquire coordinates
+                    </div>
                 </div>
 
-                <button onclick="getCurrentLocation()" id="locationBtn">Get My Location</button>
-                <button onclick="getHighAccuracyLocation()" id="highAccuracyBtn">High Accuracy GPS</button>
-                <button onclick="showManualLocationInput()" id="manualLocationBtn">Manual Location</button>
-                <button onclick="startAreaScan()" id="scanBtn" disabled>Start Area Scan</button>
-                <button onclick="stopScan()" id="stopBtn" disabled>Stop Scan</button>
+                <div class="btn-group">
+                    <button onclick="getCurrentLocation()" id="locationBtn">📍 GET LOCATION</button>
+                    <button onclick="getHighAccuracyLocation()" id="highAccuracyBtn">🎯 HIGH PRECISION</button>
+                    <button onclick="showManualLocationInput()" id="manualLocationBtn">⌨️ MANUAL INPUT</button>
+                </div>
 
-                <div class="metrics-grid">
-                    <div class="metric-card">
+                <div class="metrics">
+                    <div class="metric">
                         <div class="metric-value" id="areasCanned">0</div>
-                        <div class="metric-label">Areas Scanned</div>
+                        <div class="metric-label">Scanned</div>
                     </div>
-                    <div class="metric-card">
+                    <div class="metric">
                         <div class="metric-value" id="detectionCount">0</div>
-                        <div class="metric-label">Detections</div>
+                        <div class="metric-label">Detected</div>
                     </div>
-                    <div class="metric-card">
-                        <div class="metric-value" id="scanRadius">1</div>
-                        <div class="metric-label">Radius (km)</div>
+                    <div class="metric">
+                        <div class="metric-value" id="scanRadius">1.0</div>
+                        <div class="metric-label">Radius KM</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value" id="progressPercent">0%</div>
+                        <div class="metric-label">Progress</div>
                     </div>
                 </div>
 
-                <div class="radar-sweep" id="radarDisplay" style="display: none;">
+                <div class="btn-group">
+                    <button onclick="startAreaScan()" id="scanBtn" disabled>🚀 START SCAN</button>
+                    <button onclick="stopScan()" id="stopBtn" disabled>⏹️ ABORT</button>
+                </div>
+
+                <div class="radar" id="radarDisplay" style="display: none;">
                     <div class="radar-line"></div>
                 </div>
             </div>
 
-            <div class="panel">
-                <h3><span class="icon">🗺️</span>Scan Area Map</h3>
+            <!-- Map Panel -->
+            <div class="panel map-panel">
+                <div class="panel-title">
+                    <span class="icon">🗺️</span>
+                    SCAN AREA MAP
+                </div>
                 
-                <div class="map-container" id="mapContainer">
+                <div class="map-container">
                     <div class="map-overlay">
-                        <div>
-                            <span class="status-indicator status-idle" id="statusIndicator"></span>
-                            <span id="statusText">Ready to scan</span>
-                        </div>
+                        <span class="status-indicator status-idle" id="statusIndicator"></span>
+                        <span id="statusText">READY</span>
                     </div>
-                    <canvas id="mapCanvas" width="800" height="400"></canvas>
-                    <div class="scan-grid" id="scanGrid"></div>
+                    <canvas id="mapCanvas" width="400" height="300"></canvas>
                 </div>
 
-                <div style="margin: 20px 0;">
-                    <label>Scan Radius (km):</label>
-                    <input type="range" id="radiusSlider" min="0.5" max="5" step="0.5" value="1" 
-                           style="width: 100%; margin: 10px 0;" onchange="updateScanRadius(this.value)">
-                    <div style="text-align: center; font-size: 0.9em; opacity: 0.8;">
-                        <span>0.5km</span> ←→ <span>5km</span>
+                <div class="map-controls">
+                    <div class="slider-container">
+                        <span>0.5</span>
+                        <input type="range" id="radiusSlider" min="0.5" max="5" step="0.1" value="1" 
+                               onchange="updateScanRadius(this.value)">
+                        <span>5.0</span>
                     </div>
                 </div>
             </div>
-        </div>
 
-        <div class="panel full-width">
-            <h3><span class="icon">🏚️</span>Detected Abandoned Places</h3>
-            
-            <div class="detection-list" id="detectionList">
-                <div style="text-align: center; opacity: 0.7; padding: 40px;">
-                    <p>🔍 No detections yet. Start a scan to find abandoned places near you!</p>
+            <!-- Scanner Panel -->
+            <div class="panel scanner-panel">
+                <div class="panel-title">
+                    <span class="icon">📊</span>
+                    SCAN PROGRESS
                 </div>
-            </div>
-        </div>
-
-        <div class="grid">
-            <div class="panel">
-                <h3><span class="icon">📊</span>Scan Progress</h3>
                 
-                <div class="progress-ring" id="progressRing">
-                    <svg width="120" height="120">
-                        <circle class="progress-ring-circle" cx="60" cy="60" r="52"></circle>
-                        <circle class="progress-ring-progress" cx="60" cy="60" r="52" 
-                                stroke-dasharray="326.72" stroke-dashoffset="326.72" id="progressCircle"></circle>
+                <div class="progress-ring">
+                    <svg width="80" height="80">
+                        <circle class="progress-ring-bg" cx="40" cy="40" r="35"></circle>
+                        <circle class="progress-ring-progress" cx="40" cy="40" r="35" 
+                                stroke-dasharray="219.9" stroke-dashoffset="219.9" id="progressCircle"></circle>
                     </svg>
-                    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 1.2em; font-weight: bold;">
-                        <span id="progressPercent">0%</span>
-                    </div>
+                    <div class="progress-text" id="progressText">0%</div>
                 </div>
 
-                <div id="scanningTiles" style="text-align: center; margin: 20px 0;"></div>
+                <div class="scan-tiles" id="scanningTiles"></div>
             </div>
+        </div>
 
-            <div class="panel">
-                <h3><span class="icon">📝</span>Scan Log</h3>
-                <div class="log-container" id="scanLog">
-                    System initialized. Ready to scan for abandoned places...<br>
+        <!-- Detection Results -->
+        <div class="panel results-panel">
+            <div class="panel-title">
+                <span class="icon">👻</span>
+                DETECTED LOCATIONS
+            </div>
+            <div class="detection-list" id="detectionList">
+                <div style="text-align: center; opacity: 0.6; padding: 20px; font-size: 0.9em;">
+                    🔍 NO DETECTIONS • START SCAN TO FIND ABANDONED SITES
                 </div>
+            </div>
+        </div>
+
+        <!-- Log Panel -->
+        <div class="panel log-panel">
+            <div class="panel-title">
+                <span class="icon">📝</span>
+                SYSTEM LOG
+            </div>
+            <div class="log-container" id="scanLog">
+                <span style="color: var(--neon-green);">[INIT]</span> Ghost Finder AI Scanner initialized<br>
+                <span style="color: var(--neon-green);">[READY]</span> Awaiting location data for target acquisition<br>
             </div>
         </div>
     </div>
@@ -523,59 +784,68 @@
         let scanProgress = 0;
         let detections = [];
         let model = null;
-        let scanRadius = 1; // km
+        let scanRadius = 1;
         let mapCanvas = null;
         let mapCtx = null;
 
-        // Initialize pre-trained model (simulated)
-        async function initializeModel() {
-            log("🧠 Initializing AI detection model...");
-            // Simulate loading a pre-trained model
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            model = { ready: true }; // Placeholder
-            log("✅ AI model loaded and ready for detection");
+        // Matrix rain effect
+        function createMatrixRain() {
+            const chars = '01░▒▓█';
+            const char = document.createElement('div');
+            char.className = 'matrix-char';
+            char.textContent = chars[Math.floor(Math.random() * chars.length)];
+            char.style.left = Math.random() * 100 + 'vw';
+            char.style.animationDelay = Math.random() * 2 + 's';
+            char.style.opacity = Math.random() * 0.5 + 0.1;
+            document.body.appendChild(char);
+            setTimeout(() => char.remove(), 3000);
         }
 
-        function log(message) {
+        setInterval(createMatrixRain, 200);
+
+        async function initializeModel() {
+            log("AI", "Loading neural network model...");
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            model = { ready: true };
+            log("AI", "Neural network loaded • Detection algorithms active");
+        }
+
+        function log(type, message) {
             const logElement = document.getElementById('scanLog');
             const timestamp = new Date().toLocaleTimeString();
-            logElement.innerHTML += `<span style="color: #00ff88">[${timestamp}]</span> ${message}<br>`;
+            logElement.innerHTML += `<span style="color: var(--neon-green);">[${type}]</span> ${message}<br>`;
             logElement.scrollTop = logElement.scrollHeight;
         }
 
         function updateStatus(status, text) {
             const indicator = document.getElementById('statusIndicator');
             const statusText = document.getElementById('statusText');
-            
             indicator.className = `status-indicator status-${status}`;
-            statusText.textContent = text;
+            statusText.textContent = text.toUpperCase();
         }
 
         function updateProgress(percent) {
             const circle = document.getElementById('progressCircle');
-            const percentText = document.getElementById('progressPercent');
-            const circumference = 2 * Math.PI * 52;
+            const percentText = document.getElementById('progressText');
+            const circumference = 2 * Math.PI * 35;
             const offset = circumference - (percent / 100) * circumference;
-            
             circle.style.strokeDashoffset = offset;
             percentText.textContent = Math.round(percent) + '%';
+            document.getElementById('progressPercent').textContent = Math.round(percent) + '%';
         }
 
         function updateScanRadius(value) {
             scanRadius = parseFloat(value);
-            document.getElementById('scanRadius').textContent = scanRadius;
-            if (currentLocation) {
-                drawMap();
-            }
+            document.getElementById('scanRadius').textContent = scanRadius.toFixed(1);
+            if (currentLocation) drawMap();
         }
 
         async function getCurrentLocation(highAccuracy = false) {
-            updateStatus('scanning', 'Getting location...');
-            log(`📍 Requesting location access${highAccuracy ? ' (high accuracy)' : ''}...`);
+            updateStatus('scanning', 'Acquiring GPS coordinates...');
+            log("GPS", `Requesting location access${highAccuracy ? ' • High precision mode' : ''}`);
 
             if (!navigator.geolocation) {
-                alert('Geolocation is not supported by this browser. Please use manual location input.');
-                updateStatus('error', 'Location not supported');
+                log("ERROR", "Geolocation not supported • Switching to manual input");
                 showManualLocationInput();
                 return;
             }
@@ -583,7 +853,7 @@
             const options = {
                 enableHighAccuracy: highAccuracy,
                 timeout: highAccuracy ? 15000 : 10000,
-                maximumAge: highAccuracy ? 0 : 300000 // 5 minutes cache for normal, 0 for high accuracy
+                maximumAge: highAccuracy ? 0 : 300000
             };
 
             navigator.geolocation.getCurrentPosition(
@@ -598,112 +868,74 @@
 
                     await updateLocationDisplay();
                     document.getElementById('scanBtn').disabled = false;
-                    updateStatus('idle', 'Location acquired - ready to scan');
-                    log(`✅ Location acquired: ${currentLocation.lat.toFixed(6)}, ${currentLocation.lng.toFixed(6)} (±${Math.round(currentLocation.accuracy)}m)`);
+                    updateStatus('idle', 'Location acquired • Ready to scan');
+                    log("GPS", `Coordinates locked: ${currentLocation.lat.toFixed(6)}, ${currentLocation.lng.toFixed(6)}`);
                     
                     await initializeModel();
                     drawMap();
                 },
-                (error) => {
-                    handleLocationError(error, highAccuracy);
-                },
+                (error) => handleLocationError(error, highAccuracy),
                 options
             );
         }
 
         async function getHighAccuracyLocation() {
-            log("🎯 Requesting high-accuracy GPS location...");
-            log("⏳ This may take longer but will provide better precision");
+            log("GPS", "Activating high-precision GPS • Please wait...");
             await getCurrentLocation(true);
         }
 
         function handleLocationError(error, highAccuracy) {
-            let errorMsg = 'Location access failed';
+            let errorMsg = 'GPS acquisition failed';
             let suggestion = '';
             
             switch(error.code) {
                 case error.PERMISSION_DENIED:
-                    errorMsg = "Location access denied by user";
-                    suggestion = "Please enable location permissions in your browser settings and refresh the page.";
+                    errorMsg = "Location access denied";
+                    suggestion = "Enable location permissions and refresh";
                     break;
                 case error.POSITION_UNAVAILABLE:
-                    errorMsg = "Location information unavailable";
-                    suggestion = "GPS signal may be weak. Try moving to an open area or use manual location input.";
+                    errorMsg = "GPS signal unavailable";
+                    suggestion = "Move to open area or use manual input";
                     break;
                 case error.TIMEOUT:
-                    errorMsg = highAccuracy ? "High-accuracy GPS timeout" : "Location request timed out";
-                    suggestion = highAccuracy ? "Try standard location or manual input." : "Try high-accuracy GPS or manual input.";
+                    errorMsg = "GPS timeout";
+                    suggestion = "Try manual coordinate input";
                     break;
             }
             
             updateStatus('error', errorMsg);
-            log(`❌ Location error: ${errorMsg}`);
-            log(`💡 Suggestion: ${suggestion}`);
+            log("ERROR", `${errorMsg} • ${suggestion}`);
             
-            // Show a more helpful dialog
-            const useManual = confirm(`${errorMsg}\n\n${suggestion}\n\nWould you like to enter your location manually instead?`);
-            if (useManual) {
-                showManualLocationInput();
-            }
+            const useManual = confirm(`${errorMsg}\n\n${suggestion}\n\nUse manual coordinate input?`);
+            if (useManual) showManualLocationInput();
         }
 
         function showManualLocationInput() {
             const modal = document.createElement('div');
-            modal.style.cssText = `
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background: rgba(0, 0, 0, 0.8);
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                z-index: 1000;
-            `;
-            
+            modal.className = 'modal';
             modal.innerHTML = `
-                <div style="
-                    background: linear-gradient(135deg, #1a1a2e, #16213e);
-                    border-radius: 20px;
-                    padding: 30px;
-                    border: 2px solid rgba(0, 255, 136, 0.3);
-                    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-                    max-width: 500px;
-                    width: 90%;
-                    color: white;
-                    text-align: center;
-                ">
-                    <h3 style="margin-bottom: 20px; color: #00ff88;">📍 Manual Location Input</h3>
-                    <p style="margin-bottom: 20px; opacity: 0.8;">Enter your coordinates or use a known location:</p>
+                <div class="modal-content">
+                    <h3>📍 MANUAL COORDINATES</h3>
+                    <p style="font-size: 0.9em; opacity: 0.8; margin-bottom: 15px;">
+                        Enter precise GPS coordinates
+                    </p>
                     
-                    <div style="margin: 15px 0;">
-                        <label style="display: block; margin-bottom: 5px;">Latitude:</label>
-                        <input type="number" id="manualLat" step="any" placeholder="e.g., 41.6032" 
-                               style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #333; background: #2a2a2a; color: white;">
+                    <input type="number" id="manualLat" step="any" placeholder="Latitude (e.g., 41.6032)">
+                    <input type="number" id="manualLng" step="any" placeholder="Longitude (e.g., -83.5957)">
+                    
+                    <div class="quick-locations">
+                        <button class="quick-btn" onclick="setQuickLocation(41.6032, -83.5957, 'Holland, OH')">Holland, OH</button>
+                        <button class="quick-btn" onclick="setQuickLocation(40.7128, -74.0060, 'NYC')">NYC</button>
+                        <button class="quick-btn" onclick="setQuickLocation(34.0522, -118.2437, 'LA')">LA</button>
+                        <button class="quick-btn" onclick="setQuickLocation(41.8781, -87.6298, 'Chicago')">Chicago</button>
                     </div>
                     
-                    <div style="margin: 15px 0;">
-                        <label style="display: block; margin-bottom: 5px;">Longitude:</label>
-                        <input type="number" id="manualLng" step="any" placeholder="e.g., -83.5957" 
-                               style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #333; background: #2a2a2a; color: white;">
-                    </div>
-                    
-                    <div style="margin: 20px 0;">
-                        <p style="font-size: 0.9em; opacity: 0.7;">Quick locations:</p>
-                        <button onclick="setQuickLocation(41.6032, -83.5957, 'Holland, Ohio')" style="margin: 5px; padding: 8px 12px; font-size: 12px;">Holland, OH</button>
-                        <button onclick="setQuickLocation(40.7128, -74.0060, 'New York City')" style="margin: 5px; padding: 8px 12px; font-size: 12px;">NYC</button>
-                        <button onclick="setQuickLocation(34.0522, -118.2437, 'Los Angeles')" style="margin: 5px; padding: 8px 12px; font-size: 12px;">LA</button>
-                        <button onclick="setQuickLocation(41.8781, -87.6298, 'Chicago')" style="margin: 5px; padding: 8px 12px; font-size: 12px;">Chicago</button>
-                    </div>
-                    
-                    <div style="margin-top: 25px;">
-                        <button onclick="setManualLocation()" style="margin: 5px; background: linear-gradient(45deg, #00ff88, #00d4ff);">Set Location</button>
-                        <button onclick="closeManualInput()" style="margin: 5px; background: #666;">Cancel</button>
+                    <div class="modal-buttons">
+                        <button onclick="setManualLocation()">SET LOCATION</button>
+                        <button onclick="closeManualInput()" style="background: rgba(255,0,0,0.2); border-color: #ff0066;">CANCEL</button>
                     </div>
                 </div>
             `;
-            
             document.body.appendChild(modal);
             window.currentModal = modal;
         }
@@ -711,32 +943,22 @@
         function setQuickLocation(lat, lng, name) {
             document.getElementById('manualLat').value = lat;
             document.getElementById('manualLng').value = lng;
-            log(`📍 Quick location selected: ${name}`);
+            log("PRESET", `Quick location: ${name}`);
         }
 
         async function setManualLocation() {
             const lat = parseFloat(document.getElementById('manualLat').value);
             const lng = parseFloat(document.getElementById('manualLng').value);
             
-            if (isNaN(lat) || isNaN(lng)) {
-                alert('Please enter valid latitude and longitude values.');
-                return;
-            }
-            
-            if (lat < -90 || lat > 90) {
-                alert('Latitude must be between -90 and 90 degrees.');
-                return;
-            }
-            
-            if (lng < -180 || lng > 180) {
-                alert('Longitude must be between -180 and 180 degrees.');
+            if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+                alert('Invalid coordinates • Please check values');
                 return;
             }
             
             currentLocation = {
                 lat: lat,
                 lng: lng,
-                accuracy: 1000, // Assume 1km accuracy for manual input
+                accuracy: 1000,
                 timestamp: Date.now(),
                 manual: true
             };
@@ -744,8 +966,8 @@
             closeManualInput();
             await updateLocationDisplay();
             document.getElementById('scanBtn').disabled = false;
-            updateStatus('idle', 'Manual location set - ready to scan');
-            log(`✅ Manual location set: ${currentLocation.lat.toFixed(6)}, ${currentLocation.lng.toFixed(6)}`);
+            updateStatus('idle', 'Manual coordinates set');
+            log("MANUAL", `Coordinates set: ${lat.toFixed(6)}, ${lng.toFixed(6)}`);
             
             await initializeModel();
             drawMap();
@@ -760,34 +982,21 @@
 
         async function updateLocationDisplay() {
             const locationInfo = document.getElementById('locationInfo');
-            const accuracy = currentLocation.accuracy;
-            const isHighAccuracy = currentLocation.highAccuracy;
-            const isManual = currentLocation.manual;
+            const {lat, lng, accuracy, highAccuracy, manual} = currentLocation;
             
-            let accuracyText = '';
-            let sourceText = '';
-            
-            if (isManual) {
-                accuracyText = 'Manual entry (±1km estimated)';
-                sourceText = '📝 Manual location input';
-            } else if (isHighAccuracy) {
-                accuracyText = `High accuracy: ±${Math.round(accuracy)}m`;
-                sourceText = '🎯 High-precision GPS';
-            } else {
-                accuracyText = `Standard accuracy: ±${Math.round(accuracy)}m`;
-                sourceText = '📍 Standard GPS';
-            }
+            let source = manual ? '⌨️ MANUAL INPUT' : 
+                        highAccuracy ? '🎯 HIGH PRECISION GPS' : '📍 STANDARD GPS';
+            let accuracyText = manual ? '±1000m est.' : `±${Math.round(accuracy)}m`;
             
             locationInfo.innerHTML = `
-                <p><strong>📍 Location Acquired</strong></p>
+                <div style="color: var(--neon-green); font-weight: 600;">📡 COORDINATES LOCKED</div>
                 <div class="coordinates">
-                    Lat: ${currentLocation.lat.toFixed(6)}<br>
-                    Lng: ${currentLocation.lng.toFixed(6)}
+                    ${lat.toFixed(6)}<br>
+                    ${lng.toFixed(6)}
                 </div>
-                <p>${accuracyText}</p>
-                <p style="margin-top: 10px; font-size: 0.9em; opacity: 0.8;">
-                    ${sourceText} • Ready for scanning
-                </p>
+                <div style="font-size: 0.8em; opacity: 0.8;">
+                    ${source} • ${accuracyText}
+                </div>
             `;
         }
 
@@ -795,67 +1004,64 @@
             mapCanvas = document.getElementById('mapCanvas');
             mapCtx = mapCanvas.getContext('2d');
             
-            // Clear canvas
-            mapCtx.fillStyle = '#1a1a2e';
+            // Clear
+            mapCtx.fillStyle = '#111111';
             mapCtx.fillRect(0, 0, mapCanvas.width, mapCanvas.height);
             
-            // Draw grid
-            mapCtx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-            mapCtx.lineWidth = 1;
-            for (let x = 0; x < mapCanvas.width; x += 40) {
+            // Grid
+            mapCtx.strokeStyle = 'rgba(0, 255, 65, 0.1)';
+            mapCtx.lineWidth = 0.5;
+            for (let x = 0; x < mapCanvas.width; x += 20) {
                 mapCtx.beginPath();
                 mapCtx.moveTo(x, 0);
                 mapCtx.lineTo(x, mapCanvas.height);
                 mapCtx.stroke();
             }
-            for (let y = 0; y < mapCanvas.height; y += 40) {
+            for (let y = 0; y < mapCanvas.height; y += 20) {
                 mapCtx.beginPath();
                 mapCtx.moveTo(0, y);
                 mapCtx.lineTo(mapCanvas.width, y);
                 mapCtx.stroke();
             }
             
-            // Draw center point (current location)
             const centerX = mapCanvas.width / 2;
             const centerY = mapCanvas.height / 2;
             
-            mapCtx.fillStyle = '#00ff88';
+            // Location marker
+            mapCtx.fillStyle = '#00ff41';
+            mapCtx.shadowColor = '#00ff41';
+            mapCtx.shadowBlur = 10;
             mapCtx.beginPath();
-            mapCtx.arc(centerX, centerY, 8, 0, 2 * Math.PI);
+            mapCtx.arc(centerX, centerY, 6, 0, 2 * Math.PI);
             mapCtx.fill();
+            mapCtx.shadowBlur = 0;
             
-            // Draw scan radius circle
-            const pixelsPerKm = 60; // Approximate scale
-            const radiusPixels = scanRadius * pixelsPerKm;
-            
-            mapCtx.strokeStyle = 'rgba(0, 255, 136, 0.5)';
+            // Scan radius
+            const radiusPixels = scanRadius * 30;
+            mapCtx.strokeStyle = 'rgba(0, 255, 65, 0.4)';
             mapCtx.lineWidth = 2;
             mapCtx.beginPath();
             mapCtx.arc(centerX, centerY, radiusPixels, 0, 2 * Math.PI);
             mapCtx.stroke();
             
-            // Draw detection points
-            detections.forEach(detection => {
-                const offsetX = (Math.random() - 0.5) * radiusPixels * 1.5;
-                const offsetY = (Math.random() - 0.5) * radiusPixels * 1.5;
+            // Detection points
+            detections.forEach((detection, i) => {
+                const angle = (i / detections.length) * 2 * Math.PI;
+                const distance = Math.random() * radiusPixels * 0.8;
+                const x = centerX + Math.cos(angle) * distance;
+                const y = centerY + Math.sin(angle) * distance;
                 
-                mapCtx.fillStyle = detection.confidence > 0.8 ? '#ff4444' : 
-                                 detection.confidence > 0.6 ? '#ffaa00' : '#00ff88';
+                mapCtx.fillStyle = detection.confidence > 0.8 ? '#ff0066' : 
+                                 detection.confidence > 0.6 ? '#ffaa00' : '#00ff41';
                 mapCtx.beginPath();
-                mapCtx.arc(centerX + offsetX, centerY + offsetY, 6, 0, 2 * Math.PI);
+                mapCtx.arc(x, y, 4, 0, 2 * Math.PI);
                 mapCtx.fill();
             });
-            
-            // Label
-            mapCtx.fillStyle = '#00ff88';
-            mapCtx.font = '12px Arial';
-            mapCtx.textAlign = 'center';
-            mapCtx.fillText('YOUR LOCATION', centerX, centerY + 25);
         }
 
         async function startAreaScan() {
             if (!currentLocation || !model) {
-                alert('Please get your location first and wait for the model to load');
+                alert('Location and AI model required');
                 return;
             }
 
@@ -863,77 +1069,58 @@
             scanProgress = 0;
             detections = [];
             
-            // Clear previous detections
             document.getElementById('detectionList').innerHTML = '';
             document.getElementById('detectionCount').textContent = '0';
-            
             document.getElementById('scanBtn').disabled = true;
             document.getElementById('stopBtn').disabled = false;
             document.getElementById('radarDisplay').style.display = 'block';
             
-            updateStatus('scanning', 'Scanning area for abandoned places...');
-            log(`🛰️ Starting area scan (${scanRadius}km radius)...`);
-            log("📡 Acquiring satellite imagery tiles...");
+            updateStatus('scanning', 'Scanning for abandoned sites...');
+            log("SCAN", `Initiating area scan • ${scanRadius}km radius`);
 
-            // Simulate scanning grid tiles around location
-            const gridSize = 8; // 8x8 grid
-            const totalTiles = gridSize * gridSize;
-            let tilesScanned = 0;
-            
+            const totalTiles = 64;
             const tilesContainer = document.getElementById('scanningTiles');
             tilesContainer.innerHTML = '';
             
-            // Create visual tiles
+            // Create tiles
             for (let i = 0; i < totalTiles; i++) {
                 const tile = document.createElement('div');
-                tile.className = 'satellite-tile';
-                tile.style.background = `linear-gradient(45deg, #2a2a2a, #1a1a1a)`;
-                tile.style.display = 'inline-block';
+                tile.className = 'scan-tile';
                 tilesContainer.appendChild(tile);
             }
 
-            const tiles = tilesContainer.querySelectorAll('.satellite-tile');
+            const tiles = tilesContainer.querySelectorAll('.scan-tile');
 
-            // Scan each tile
+            // Scan tiles
             for (let i = 0; i < totalTiles && isScanning; i++) {
                 const tile = tiles[i];
                 tile.classList.add('scanning');
                 
-                // Simulate API call and analysis
-                await new Promise(resolve => setTimeout(resolve, 200 + Math.random() * 300));
+                await new Promise(resolve => setTimeout(resolve, 150 + Math.random() * 200));
                 
                 tile.classList.remove('scanning');
                 
-                // Simulate detection
-                const hasDetection = Math.random() < 0.15; // 15% chance
-                if (hasDetection) {
-                    const confidence = 0.6 + Math.random() * 0.35; // 60-95%
-                    const detection = await generateDetection(i, confidence);
+                // Detection chance
+                if (Math.random() < 0.12) {
+                    const confidence = 0.65 + Math.random() * 0.3;
+                    const detection = generateDetection(i, confidence);
                     detections.push(detection);
                     
                     tile.classList.add('detected');
-                    tile.style.background = `linear-gradient(45deg, #ff4444, #ff6666)`;
-                    
                     addDetectionToList(detection);
                     document.getElementById('detectionCount').textContent = detections.length;
-                    
-                    log(`🏚️ Detection found: ${detection.type} (${Math.round(detection.confidence * 100)}% confidence)`);
+                    log("DETECT", `${detection.type} • ${Math.round(confidence * 100)}% confidence`);
                 }
                 
-                tilesScanned++;
-                scanProgress = (tilesScanned / totalTiles) * 100;
+                scanProgress = ((i + 1) / totalTiles) * 100;
                 updateProgress(scanProgress);
-                document.getElementById('areasCanned').textContent = tilesScanned;
-                
-                if (tilesScanned % 8 === 0) {
-                    log(`📊 Progress: ${tilesScanned}/${totalTiles} tiles scanned (${Math.round(scanProgress)}%)`);
-                }
+                document.getElementById('areasCanned').textContent = i + 1;
             }
 
             if (isScanning) {
-                log(`✅ Area scan complete! Found ${detections.length} potential abandoned places`);
-                updateStatus('idle', `Scan complete - ${detections.length} detections found`);
-                drawMap(); // Update map with detection points
+                log("COMPLETE", `Scan finished • ${detections.length} sites detected`);
+                updateStatus('idle', `Scan complete • ${detections.length} detections`);
+                drawMap();
             }
 
             document.getElementById('scanBtn').disabled = false;
@@ -944,62 +1131,44 @@
 
         function stopScan() {
             isScanning = false;
-            updateStatus('idle', 'Scan stopped by user');
-            log("⏹️ Scan stopped by user");
-            
+            updateStatus('idle', 'Scan aborted');
+            log("ABORT", "Scan terminated by user");
             document.getElementById('scanBtn').disabled = false;
             document.getElementById('stopBtn').disabled = true;
             document.getElementById('radarDisplay').style.display = 'none';
         }
 
-        async function generateDetection(tileIndex, confidence) {
-            // Generate realistic detection data
-            const types = ['Abandoned Building', 'Vacant Lot', 'Derelict Structure', 'Empty Warehouse', 'Abandoned House', 'Unused Factory', 'Vacant Store'];
+        function generateDetection(index, confidence) {
+            const types = ['Abandoned Building', 'Vacant Lot', 'Derelict Structure', 'Empty Warehouse', 'Abandoned House', 'Unused Factory'];
             const distances = [0.2, 0.3, 0.5, 0.7, 0.9, 1.2, 1.5, 1.8, 2.1, 2.4];
-            
-            const offsetLat = (Math.random() - 0.5) * 0.02; // ~1km range
-            const offsetLng = (Math.random() - 0.5) * 0.02;
+            const indicators = [
+                'Overgrown vegetation detected',
+                'No vehicle activity observed', 
+                'Structural deterioration visible',
+                'Broken windows detected',
+                'Unkempt surroundings',
+                'Isolation from active areas'
+            ];
             
             return {
-                id: Date.now() + tileIndex,
+                id: Date.now() + index,
                 type: types[Math.floor(Math.random() * types.length)],
                 confidence: confidence,
                 distance: distances[Math.floor(Math.random() * distances.length)],
                 coordinates: {
-                    lat: currentLocation.lat + offsetLat,
-                    lng: currentLocation.lng + offsetLng
+                    lat: currentLocation.lat + (Math.random() - 0.5) * 0.02,
+                    lng: currentLocation.lng + (Math.random() - 0.5) * 0.02
                 },
-                indicators: generateIndicators(confidence),
+                indicators: indicators.slice(0, Math.floor(confidence * 4) + 2),
                 timestamp: new Date().toLocaleTimeString()
             };
-        }
-
-        function generateIndicators(confidence) {
-            const allIndicators = [
-                'Overgrown vegetation detected',
-                'No vehicle activity observed',
-                'Structural deterioration visible',
-                'Broken/missing windows detected',
-                'Unkempt surroundings',
-                'No recent maintenance signs',
-                'Isolated from active areas',
-                'Weathered building materials',
-                'Empty parking areas',
-                'Debris accumulation',
-                'Faded paint/signage',
-                'Blocked entrances'
-            ];
-            
-            const numIndicators = Math.floor(confidence * 5) + 2;
-            const shuffled = allIndicators.sort(() => 0.5 - Math.random());
-            return shuffled.slice(0, numIndicators);
         }
 
         function addDetectionToList(detection) {
             const list = document.getElementById('detectionList');
             
             if (list.querySelector('div[style*="text-align: center"]')) {
-                list.innerHTML = ''; // Clear placeholder
+                list.innerHTML = '';
             }
             
             const confidenceClass = detection.confidence > 0.8 ? 'high-confidence' : 
@@ -1008,55 +1177,45 @@
             const item = document.createElement('div');
             item.className = `detection-item ${confidenceClass}`;
             item.innerHTML = `
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                    <strong>🏚️ ${detection.type}</strong>
-                    <span style="font-size: 0.9em; opacity: 0.8;">${detection.distance}km away</span>
+                <div class="detection-header">
+                    <span class="detection-type">👻 ${detection.type.toUpperCase()}</span>
+                    <span class="detection-distance">${detection.distance}km</span>
                 </div>
-                
                 <div class="confidence-bar">
                     <div class="confidence-fill" style="width: ${detection.confidence * 100}%; 
-                         background: ${detection.confidence > 0.8 ? '#ff4444' : 
-                                     detection.confidence > 0.6 ? '#ffaa00' : '#00ff88'};"></div>
+                         background: ${detection.confidence > 0.8 ? '#ff0066' : 
+                                     detection.confidence > 0.6 ? '#ffaa00' : '#00ff41'};"></div>
                 </div>
-                
-                <div style="font-size: 0.9em; margin: 8px 0;">
-                    <strong>Confidence:</strong> ${Math.round(detection.confidence * 100)}%
+                <div style="font-size: 0.9em; margin: 4px 0;">
+                    CONFIDENCE: ${Math.round(detection.confidence * 100)}%
                 </div>
-                
-                <div style="font-size: 0.8em; opacity: 0.8; margin: 8px 0;">
-                    <strong>Coordinates:</strong> ${detection.coordinates.lat.toFixed(6)}, ${detection.coordinates.lng.toFixed(6)}
+                <div style="font-size: 0.8em; opacity: 0.8;">
+                    ${detection.coordinates.lat.toFixed(6)}, ${detection.coordinates.lng.toFixed(6)}
                 </div>
-                
-                <div style="font-size: 0.8em; margin: 10px 0;">
-                    <strong>Detection Indicators:</strong>
-                    <ul class="indicators-list">
-                        ${detection.indicators.map(indicator => `<li>${indicator}</li>`).join('')}
-                    </ul>
-                </div>
-                
-                <div style="font-size: 0.8em; opacity: 0.6; text-align: right; margin-top: 10px;">
-                    Detected at ${detection.timestamp}
+                <div style="font-size: 0.7em; opacity: 0.6; margin-top: 4px;">
+                    ${detection.timestamp}
                 </div>
             `;
             
-            // Add click handler to show more details
             item.onclick = () => {
-                alert(`Detailed Analysis for ${detection.type}\n\n` +
-                      `Location: ${detection.coordinates.lat.toFixed(6)}, ${detection.coordinates.lng.toFixed(6)}\n` +
-                      `Distance: ${detection.distance}km\n` +
-                      `Confidence: ${Math.round(detection.confidence * 100)}%\n\n` +
-                      `Key Indicators:\n${detection.indicators.join('\n• ')}\n\n` +
-                      `Detected: ${detection.timestamp}`);
+                alert(`DETECTION ANALYSIS\n\n${detection.type}\nLocation: ${detection.coordinates.lat.toFixed(6)}, ${detection.coordinates.lng.toFixed(6)}\nDistance: ${detection.distance}km\nConfidence: ${Math.round(detection.confidence * 100)}%\n\nIndicators:\n• ${detection.indicators.join('\n• ')}\n\nDetected: ${detection.timestamp}`);
             };
             
             list.appendChild(item);
         }
 
-        // Initialize the application
+        // Initialize
         document.addEventListener('DOMContentLoaded', function() {
-            log("🚀 Local Abandoned Places Scanner initialized");
-            log("📱 Ready to detect abandoned locations using AI analysis");
-            updateStatus('idle', 'Ready to scan');
+            log("INIT", "Ghost Finder initialized • Ready for operation");
+            updateStatus('idle', 'System ready');
+            
+            // Create initial scan tiles
+            const tilesContainer = document.getElementById('scanningTiles');
+            for (let i = 0; i < 64; i++) {
+                const tile = document.createElement('div');
+                tile.className = 'scan-tile';
+                tilesContainer.appendChild(tile);
+            }
         });
     </script>
 </body>
