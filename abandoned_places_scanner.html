@@ -430,6 +430,8 @@
                 </div>
 
                 <button onclick="getCurrentLocation()" id="locationBtn">Get My Location</button>
+                <button onclick="getHighAccuracyLocation()" id="highAccuracyBtn">High Accuracy GPS</button>
+                <button onclick="showManualLocationInput()" id="manualLocationBtn">Manual Location</button>
                 <button onclick="startAreaScan()" id="scanBtn" disabled>Start Area Scan</button>
                 <button onclick="stopScan()" id="stopBtn" disabled>Stop Scan</button>
 
@@ -567,63 +569,226 @@
             }
         }
 
-        async function getCurrentLocation() {
+        async function getCurrentLocation(highAccuracy = false) {
             updateStatus('scanning', 'Getting location...');
-            log("📍 Requesting location access...");
+            log(`📍 Requesting location access${highAccuracy ? ' (high accuracy)' : ''}...`);
 
             if (!navigator.geolocation) {
-                alert('Geolocation is not supported by this browser');
+                alert('Geolocation is not supported by this browser. Please use manual location input.');
                 updateStatus('error', 'Location not supported');
+                showManualLocationInput();
                 return;
             }
+
+            const options = {
+                enableHighAccuracy: highAccuracy,
+                timeout: highAccuracy ? 15000 : 10000,
+                maximumAge: highAccuracy ? 0 : 300000 // 5 minutes cache for normal, 0 for high accuracy
+            };
 
             navigator.geolocation.getCurrentPosition(
                 async (position) => {
                     currentLocation = {
                         lat: position.coords.latitude,
                         lng: position.coords.longitude,
-                        accuracy: position.coords.accuracy
+                        accuracy: position.coords.accuracy,
+                        timestamp: position.timestamp,
+                        highAccuracy: highAccuracy
                     };
 
-                    const locationInfo = document.getElementById('locationInfo');
-                    locationInfo.innerHTML = `
-                        <p><strong>📍 Location Acquired</strong></p>
-                        <div class="coordinates">
-                            Lat: ${currentLocation.lat.toFixed(6)}<br>
-                            Lng: ${currentLocation.lng.toFixed(6)}
-                        </div>
-                        <p>Accuracy: ±${Math.round(currentLocation.accuracy)}m</p>
-                        <p style="margin-top: 10px; font-size: 0.9em; opacity: 0.8;">
-                            📍 Location detected and ready for scanning
-                        </p>
-                    `;
-
+                    await updateLocationDisplay();
                     document.getElementById('scanBtn').disabled = false;
                     updateStatus('idle', 'Location acquired - ready to scan');
-                    log(`✅ Location acquired: ${currentLocation.lat.toFixed(4)}, ${currentLocation.lng.toFixed(4)}`);
+                    log(`✅ Location acquired: ${currentLocation.lat.toFixed(6)}, ${currentLocation.lng.toFixed(6)} (±${Math.round(currentLocation.accuracy)}m)`);
                     
                     await initializeModel();
                     drawMap();
                 },
                 (error) => {
-                    let errorMsg = 'Location access denied';
-                    switch(error.code) {
-                        case error.PERMISSION_DENIED:
-                            errorMsg = "Location access denied by user";
-                            break;
-                        case error.POSITION_UNAVAILABLE:
-                            errorMsg = "Location information unavailable";
-                            break;
-                        case error.TIMEOUT:
-                            errorMsg = "Location request timed out";
-                            break;
-                    }
-                    
-                    updateStatus('error', errorMsg);
-                    log(`❌ Location error: ${errorMsg}`);
-                    alert(errorMsg + '. Please enable location access and try again.');
-                }
+                    handleLocationError(error, highAccuracy);
+                },
+                options
             );
+        }
+
+        async function getHighAccuracyLocation() {
+            log("🎯 Requesting high-accuracy GPS location...");
+            log("⏳ This may take longer but will provide better precision");
+            await getCurrentLocation(true);
+        }
+
+        function handleLocationError(error, highAccuracy) {
+            let errorMsg = 'Location access failed';
+            let suggestion = '';
+            
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    errorMsg = "Location access denied by user";
+                    suggestion = "Please enable location permissions in your browser settings and refresh the page.";
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    errorMsg = "Location information unavailable";
+                    suggestion = "GPS signal may be weak. Try moving to an open area or use manual location input.";
+                    break;
+                case error.TIMEOUT:
+                    errorMsg = highAccuracy ? "High-accuracy GPS timeout" : "Location request timed out";
+                    suggestion = highAccuracy ? "Try standard location or manual input." : "Try high-accuracy GPS or manual input.";
+                    break;
+            }
+            
+            updateStatus('error', errorMsg);
+            log(`❌ Location error: ${errorMsg}`);
+            log(`💡 Suggestion: ${suggestion}`);
+            
+            // Show a more helpful dialog
+            const useManual = confirm(`${errorMsg}\n\n${suggestion}\n\nWould you like to enter your location manually instead?`);
+            if (useManual) {
+                showManualLocationInput();
+            }
+        }
+
+        function showManualLocationInput() {
+            const modal = document.createElement('div');
+            modal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.8);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                z-index: 1000;
+            `;
+            
+            modal.innerHTML = `
+                <div style="
+                    background: linear-gradient(135deg, #1a1a2e, #16213e);
+                    border-radius: 20px;
+                    padding: 30px;
+                    border: 2px solid rgba(0, 255, 136, 0.3);
+                    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+                    max-width: 500px;
+                    width: 90%;
+                    color: white;
+                    text-align: center;
+                ">
+                    <h3 style="margin-bottom: 20px; color: #00ff88;">📍 Manual Location Input</h3>
+                    <p style="margin-bottom: 20px; opacity: 0.8;">Enter your coordinates or use a known location:</p>
+                    
+                    <div style="margin: 15px 0;">
+                        <label style="display: block; margin-bottom: 5px;">Latitude:</label>
+                        <input type="number" id="manualLat" step="any" placeholder="e.g., 41.6032" 
+                               style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #333; background: #2a2a2a; color: white;">
+                    </div>
+                    
+                    <div style="margin: 15px 0;">
+                        <label style="display: block; margin-bottom: 5px;">Longitude:</label>
+                        <input type="number" id="manualLng" step="any" placeholder="e.g., -83.5957" 
+                               style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #333; background: #2a2a2a; color: white;">
+                    </div>
+                    
+                    <div style="margin: 20px 0;">
+                        <p style="font-size: 0.9em; opacity: 0.7;">Quick locations:</p>
+                        <button onclick="setQuickLocation(41.6032, -83.5957, 'Holland, Ohio')" style="margin: 5px; padding: 8px 12px; font-size: 12px;">Holland, OH</button>
+                        <button onclick="setQuickLocation(40.7128, -74.0060, 'New York City')" style="margin: 5px; padding: 8px 12px; font-size: 12px;">NYC</button>
+                        <button onclick="setQuickLocation(34.0522, -118.2437, 'Los Angeles')" style="margin: 5px; padding: 8px 12px; font-size: 12px;">LA</button>
+                        <button onclick="setQuickLocation(41.8781, -87.6298, 'Chicago')" style="margin: 5px; padding: 8px 12px; font-size: 12px;">Chicago</button>
+                    </div>
+                    
+                    <div style="margin-top: 25px;">
+                        <button onclick="setManualLocation()" style="margin: 5px; background: linear-gradient(45deg, #00ff88, #00d4ff);">Set Location</button>
+                        <button onclick="closeManualInput()" style="margin: 5px; background: #666;">Cancel</button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+            window.currentModal = modal;
+        }
+
+        function setQuickLocation(lat, lng, name) {
+            document.getElementById('manualLat').value = lat;
+            document.getElementById('manualLng').value = lng;
+            log(`📍 Quick location selected: ${name}`);
+        }
+
+        async function setManualLocation() {
+            const lat = parseFloat(document.getElementById('manualLat').value);
+            const lng = parseFloat(document.getElementById('manualLng').value);
+            
+            if (isNaN(lat) || isNaN(lng)) {
+                alert('Please enter valid latitude and longitude values.');
+                return;
+            }
+            
+            if (lat < -90 || lat > 90) {
+                alert('Latitude must be between -90 and 90 degrees.');
+                return;
+            }
+            
+            if (lng < -180 || lng > 180) {
+                alert('Longitude must be between -180 and 180 degrees.');
+                return;
+            }
+            
+            currentLocation = {
+                lat: lat,
+                lng: lng,
+                accuracy: 1000, // Assume 1km accuracy for manual input
+                timestamp: Date.now(),
+                manual: true
+            };
+            
+            closeManualInput();
+            await updateLocationDisplay();
+            document.getElementById('scanBtn').disabled = false;
+            updateStatus('idle', 'Manual location set - ready to scan');
+            log(`✅ Manual location set: ${currentLocation.lat.toFixed(6)}, ${currentLocation.lng.toFixed(6)}`);
+            
+            await initializeModel();
+            drawMap();
+        }
+
+        function closeManualInput() {
+            if (window.currentModal) {
+                document.body.removeChild(window.currentModal);
+                window.currentModal = null;
+            }
+        }
+
+        async function updateLocationDisplay() {
+            const locationInfo = document.getElementById('locationInfo');
+            const accuracy = currentLocation.accuracy;
+            const isHighAccuracy = currentLocation.highAccuracy;
+            const isManual = currentLocation.manual;
+            
+            let accuracyText = '';
+            let sourceText = '';
+            
+            if (isManual) {
+                accuracyText = 'Manual entry (±1km estimated)';
+                sourceText = '📝 Manual location input';
+            } else if (isHighAccuracy) {
+                accuracyText = `High accuracy: ±${Math.round(accuracy)}m`;
+                sourceText = '🎯 High-precision GPS';
+            } else {
+                accuracyText = `Standard accuracy: ±${Math.round(accuracy)}m`;
+                sourceText = '📍 Standard GPS';
+            }
+            
+            locationInfo.innerHTML = `
+                <p><strong>📍 Location Acquired</strong></p>
+                <div class="coordinates">
+                    Lat: ${currentLocation.lat.toFixed(6)}<br>
+                    Lng: ${currentLocation.lng.toFixed(6)}
+                </div>
+                <p>${accuracyText}</p>
+                <p style="margin-top: 10px; font-size: 0.9em; opacity: 0.8;">
+                    ${sourceText} • Ready for scanning
+                </p>
+            `;
         }
 
         function drawMap() {
