@@ -43,6 +43,7 @@ export default {
         'float': 'float 6s ease-in-out infinite',
         'fade-in': 'fadeIn 0.5s ease-in',
         'slide-up': 'slideUp 0.5s ease-out',
+        'spin': 'spin 1s linear infinite',
       },
       keyframes: {
         float: {
@@ -75,4 +76,30 @@ export default {
     },
   },
   plugins: [],
+  // Optimize for production
+  corePlugins: {
+    // Disable unused features to reduce bundle size
+    container: false,
+  },
+  // Safelist important classes that might be dynamically generated
+  safelist: [
+    'animate-pulse',
+    'animate-spin',
+    'opacity-0',
+    'opacity-100',
+    'transform',
+    'transition-opacity',
+    'duration-300',
+    'duration-500',
+    'duration-700',
+    'scale-105',
+    'scale-110',
+    '-translate-y-2',
+    '-translate-y-8',
+    'translate-x-1',
+    'blur',
+    'backdrop-blur-sm',
+    'backdrop-blur-lg',
+    'backdrop-blur-xl',
+  ]
 }
