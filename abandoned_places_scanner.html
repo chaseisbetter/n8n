@@ -1,0 +1,1222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GHOST FINDER • AI Scanner</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tensorflow/4.10.0/tf.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --neon-green: #00ff41;
+            --neon-blue: #0066ff;
+            --neon-red: #ff0066;
+            --dark-bg: #0a0a0a;
+            --dark-surface: #111111;
+            --glass: rgba(255, 255, 255, 0.05);
+            --glass-border: rgba(0, 255, 65, 0.2);
+        }
+
+        body {
+            font-family: 'JetBrains Mono', monospace;
+            background: radial-gradient(circle at 20% 80%, #001122 0%, #000000 50%, #001100 100%);
+            color: var(--neon-green);
+            min-height: 100vh;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(circle at 10% 20%, rgba(0, 255, 65, 0.1) 0%, transparent 20%),
+                radial-gradient(circle at 80% 80%, rgba(0, 102, 255, 0.1) 0%, transparent 20%),
+                radial-gradient(circle at 40% 40%, rgba(255, 0, 102, 0.05) 0%, transparent 20%);
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 15px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            position: relative;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 200px;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--neon-green), transparent);
+            animation: pulse-line 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse-line {
+            0%, 100% { opacity: 0.5; transform: translateX(-50%) scaleX(1); }
+            50% { opacity: 1; transform: translateX(-50%) scaleX(1.2); }
+        }
+
+        .logo {
+            font-size: 2.5em;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            background: linear-gradient(45deg, var(--neon-green), var(--neon-blue));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 5px;
+            text-shadow: 0 0 20px rgba(0, 255, 65, 0.5);
+            animation: glow-text 3s ease-in-out infinite alternate;
+        }
+
+        @keyframes glow-text {
+            from { filter: brightness(1) drop-shadow(0 0 10px rgba(0, 255, 65, 0.5)); }
+            to { filter: brightness(1.2) drop-shadow(0 0 20px rgba(0, 255, 65, 0.8)); }
+        }
+
+        .subtitle {
+            font-size: 0.9em;
+            opacity: 0.8;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 300px 1fr 280px;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        @media (max-width: 1024px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+                gap: 10px;
+            }
+        }
+
+        .panel {
+            background: var(--glass);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            padding: 15px;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .panel::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--neon-green), transparent);
+            animation: scan-border 4s linear infinite;
+        }
+
+        @keyframes scan-border {
+            0% { left: -100%; }
+            100% { left: 100%; }
+        }
+
+        .panel:hover {
+            border-color: var(--neon-green);
+            box-shadow: 0 0 20px rgba(0, 255, 65, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .panel-title {
+            font-size: 0.9em;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--neon-green);
+        }
+
+        .icon {
+            font-size: 1.1em;
+            filter: drop-shadow(0 0 5px currentColor);
+        }
+
+        /* Control Panel */
+        .control-panel {
+            height: fit-content;
+        }
+
+        .location-display {
+            background: rgba(0, 255, 65, 0.1);
+            border: 1px solid rgba(0, 255, 65, 0.3);
+            border-radius: 8px;
+            padding: 12px;
+            margin: 10px 0;
+            text-align: center;
+            font-size: 0.8em;
+        }
+
+        .coordinates {
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--neon-green);
+            margin: 5px 0;
+            font-weight: 600;
+        }
+
+        .btn-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin: 12px 0;
+        }
+
+        button {
+            background: linear-gradient(45deg, rgba(0, 255, 65, 0.2), rgba(0, 102, 255, 0.2));
+            color: var(--neon-green);
+            border: 1px solid var(--neon-green);
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.8em;
+            font-weight: 500;
+            font-family: inherit;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        button::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(0, 255, 65, 0.3), transparent);
+            transition: left 0.5s ease;
+        }
+
+        button:hover:not(:disabled)::before {
+            left: 100%;
+        }
+
+        button:hover:not(:disabled) {
+            box-shadow: 0 0 15px rgba(0, 255, 65, 0.5);
+            transform: translateY(-1px);
+        }
+
+        button:disabled {
+            background: rgba(255, 255, 255, 0.05);
+            color: #666;
+            border-color: #333;
+            cursor: not-allowed;
+        }
+
+        .metrics {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin: 12px 0;
+        }
+
+        .metric {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(0, 255, 65, 0.2);
+            border-radius: 6px;
+            padding: 8px;
+            text-align: center;
+        }
+
+        .metric-value {
+            font-size: 1.4em;
+            font-weight: 700;
+            color: var(--neon-green);
+            text-shadow: 0 0 10px rgba(0, 255, 65, 0.5);
+        }
+
+        .metric-label {
+            font-size: 0.7em;
+            opacity: 0.8;
+            text-transform: uppercase;
+        }
+
+        /* Map Panel */
+        .map-panel {
+            position: relative;
+        }
+
+        .map-container {
+            width: 100%;
+            height: 300px;
+            border-radius: 8px;
+            background: var(--dark-surface);
+            position: relative;
+            overflow: hidden;
+            border: 1px solid var(--glass-border);
+        }
+
+        .map-overlay {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 0.7em;
+            z-index: 10;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 6px;
+        }
+
+        .status-idle { background: #666; }
+        .status-scanning { 
+            background: var(--neon-green); 
+            animation: pulse-dot 1s infinite;
+        }
+        .status-error { background: var(--neon-red); }
+
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.2); }
+        }
+
+        .map-controls {
+            margin-top: 10px;
+        }
+
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.8em;
+        }
+
+        input[type="range"] {
+            flex: 1;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: var(--neon-green);
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(0, 255, 65, 0.5);
+        }
+
+        /* Scanner Panel */
+        .scanner-panel {
+            height: fit-content;
+        }
+
+        .progress-ring {
+            width: 80px;
+            height: 80px;
+            margin: 15px auto;
+            position: relative;
+        }
+
+        .progress-ring svg {
+            transform: rotate(-90deg);
+        }
+
+        .progress-ring-bg {
+            fill: none;
+            stroke: rgba(255, 255, 255, 0.1);
+            stroke-width: 6;
+        }
+
+        .progress-ring-progress {
+            fill: none;
+            stroke: var(--neon-green);
+            stroke-width: 6;
+            stroke-linecap: round;
+            transition: stroke-dashoffset 0.3s ease;
+            filter: drop-shadow(0 0 5px rgba(0, 255, 65, 0.5));
+        }
+
+        .progress-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 0.9em;
+            font-weight: 600;
+        }
+
+        .scan-tiles {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 2px;
+            margin: 10px 0;
+        }
+
+        .scan-tile {
+            aspect-ratio: 1;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            transition: all 0.3s ease;
+        }
+
+        .scan-tile.scanning {
+            background: rgba(0, 255, 65, 0.3);
+            border-color: var(--neon-green);
+            animation: tile-scan 1s infinite;
+        }
+
+        .scan-tile.detected {
+            background: rgba(255, 0, 102, 0.5);
+            border-color: var(--neon-red);
+            box-shadow: 0 0 8px rgba(255, 0, 102, 0.5);
+        }
+
+        @keyframes tile-scan {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; }
+        }
+
+        /* Detection Results */
+        .results-panel {
+            grid-column: 1 / -1;
+            max-height: 250px;
+        }
+
+        .detection-list {
+            max-height: 200px;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: var(--neon-green) transparent;
+        }
+
+        .detection-list::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .detection-list::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .detection-list::-webkit-scrollbar-thumb {
+            background: var(--neon-green);
+            border-radius: 3px;
+        }
+
+        .detection-item {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            padding: 10px;
+            margin: 8px 0;
+            border-left: 3px solid;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.8em;
+        }
+
+        .detection-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+            transform: translateX(3px);
+        }
+
+        .high-confidence { border-left-color: var(--neon-red); }
+        .medium-confidence { border-left-color: #ffaa00; }
+        .low-confidence { border-left-color: var(--neon-green); }
+
+        .detection-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+
+        .detection-type {
+            font-weight: 600;
+            color: var(--neon-green);
+        }
+
+        .detection-distance {
+            font-size: 0.9em;
+            opacity: 0.8;
+        }
+
+        .confidence-bar {
+            width: 100%;
+            height: 3px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            overflow: hidden;
+            margin: 4px 0;
+        }
+
+        .confidence-fill {
+            height: 100%;
+            border-radius: 2px;
+            transition: width 0.5s ease;
+        }
+
+        /* Log Panel */
+        .log-panel {
+            grid-column: 1 / -1;
+            max-height: 150px;
+        }
+
+        .log-container {
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 6px;
+            padding: 10px;
+            font-size: 0.7em;
+            max-height: 120px;
+            overflow-y: auto;
+            line-height: 1.4;
+            scrollbar-width: thin;
+            scrollbar-color: var(--neon-green) transparent;
+        }
+
+        .log-container::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .log-container::-webkit-scrollbar-thumb {
+            background: var(--neon-green);
+            border-radius: 2px;
+        }
+
+        /* Radar Animation */
+        .radar {
+            width: 60px;
+            height: 60px;
+            margin: 10px auto;
+            border: 2px solid rgba(0, 255, 65, 0.3);
+            border-radius: 50%;
+            position: relative;
+            background: radial-gradient(circle, rgba(0, 255, 65, 0.1), transparent);
+        }
+
+        .radar-line {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 1px;
+            height: 50%;
+            background: linear-gradient(to bottom, var(--neon-green), transparent);
+            transform-origin: bottom center;
+            animation: radar-sweep 2s linear infinite;
+        }
+
+        @keyframes radar-sweep {
+            0% { transform: translate(-50%, -100%) rotate(0deg); }
+            100% { transform: translate(-50%, -100%) rotate(360deg); }
+        }
+
+        /* Modal Styles */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: linear-gradient(135deg, var(--dark-surface), var(--dark-bg));
+            border-radius: 12px;
+            padding: 25px;
+            border: 2px solid var(--neon-green);
+            box-shadow: 0 10px 30px rgba(0, 255, 65, 0.3);
+            max-width: 450px;
+            width: 90%;
+            color: var(--neon-green);
+            text-align: center;
+        }
+
+        .modal h3 {
+            margin-bottom: 15px;
+            font-size: 1.2em;
+        }
+
+        .modal input {
+            width: 100%;
+            padding: 8px;
+            margin: 8px 0;
+            border: 1px solid var(--neon-green);
+            border-radius: 4px;
+            background: rgba(0, 0, 0, 0.5);
+            color: var(--neon-green);
+            font-family: inherit;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 15px;
+        }
+
+        .quick-locations {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            justify-content: center;
+            margin: 10px 0;
+        }
+
+        .quick-btn {
+            padding: 4px 8px;
+            font-size: 0.7em;
+            margin: 2px;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .logo {
+                font-size: 2em;
+            }
+            
+            .metrics {
+                grid-template-columns: repeat(4, 1fr);
+            }
+            
+            .scan-tiles {
+                grid-template-columns: repeat(6, 1fr);
+            }
+        }
+
+        /* Animation keyframes */
+        @keyframes matrix-rain {
+            0% { transform: translateY(-100%); opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { transform: translateY(100vh); opacity: 0; }
+        }
+
+        .matrix-char {
+            position: fixed;
+            color: var(--neon-green);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8em;
+            animation: matrix-rain 3s linear infinite;
+            pointer-events: none;
+            z-index: -1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">👻 GHOST FINDER</div>
+            <div class="subtitle">AI-Powered Abandoned Site Scanner</div>
+        </div>
+
+        <div class="main-grid">
+            <!-- Control Panel -->
+            <div class="panel control-panel">
+                <div class="panel-title">
+                    <span class="icon">🎯</span>
+                    LOCATION CONTROL
+                </div>
+                
+                <div class="location-display" id="locationInfo">
+                    <div>📡 AWAITING GPS SIGNAL</div>
+                    <div style="font-size: 0.9em; opacity: 0.8; margin-top: 5px;">
+                        Click button to acquire coordinates
+                    </div>
+                </div>
+
+                <div class="btn-group">
+                    <button onclick="getCurrentLocation()" id="locationBtn">📍 GET LOCATION</button>
+                    <button onclick="getHighAccuracyLocation()" id="highAccuracyBtn">🎯 HIGH PRECISION</button>
+                    <button onclick="showManualLocationInput()" id="manualLocationBtn">⌨️ MANUAL INPUT</button>
+                </div>
+
+                <div class="metrics">
+                    <div class="metric">
+                        <div class="metric-value" id="areasCanned">0</div>
+                        <div class="metric-label">Scanned</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value" id="detectionCount">0</div>
+                        <div class="metric-label">Detected</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value" id="scanRadius">1.0</div>
+                        <div class="metric-label">Radius KM</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value" id="progressPercent">0%</div>
+                        <div class="metric-label">Progress</div>
+                    </div>
+                </div>
+
+                <div class="btn-group">
+                    <button onclick="startAreaScan()" id="scanBtn" disabled>🚀 START SCAN</button>
+                    <button onclick="stopScan()" id="stopBtn" disabled>⏹️ ABORT</button>
+                </div>
+
+                <div class="radar" id="radarDisplay" style="display: none;">
+                    <div class="radar-line"></div>
+                </div>
+            </div>
+
+            <!-- Map Panel -->
+            <div class="panel map-panel">
+                <div class="panel-title">
+                    <span class="icon">🗺️</span>
+                    SCAN AREA MAP
+                </div>
+                
+                <div class="map-container">
+                    <div class="map-overlay">
+                        <span class="status-indicator status-idle" id="statusIndicator"></span>
+                        <span id="statusText">READY</span>
+                    </div>
+                    <canvas id="mapCanvas" width="400" height="300"></canvas>
+                </div>
+
+                <div class="map-controls">
+                    <div class="slider-container">
+                        <span>0.5</span>
+                        <input type="range" id="radiusSlider" min="0.5" max="5" step="0.1" value="1" 
+                               onchange="updateScanRadius(this.value)">
+                        <span>5.0</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scanner Panel -->
+            <div class="panel scanner-panel">
+                <div class="panel-title">
+                    <span class="icon">📊</span>
+                    SCAN PROGRESS
+                </div>
+                
+                <div class="progress-ring">
+                    <svg width="80" height="80">
+                        <circle class="progress-ring-bg" cx="40" cy="40" r="35"></circle>
+                        <circle class="progress-ring-progress" cx="40" cy="40" r="35" 
+                                stroke-dasharray="219.9" stroke-dashoffset="219.9" id="progressCircle"></circle>
+                    </svg>
+                    <div class="progress-text" id="progressText">0%</div>
+                </div>
+
+                <div class="scan-tiles" id="scanningTiles"></div>
+            </div>
+        </div>
+
+        <!-- Detection Results -->
+        <div class="panel results-panel">
+            <div class="panel-title">
+                <span class="icon">👻</span>
+                DETECTED LOCATIONS
+            </div>
+            <div class="detection-list" id="detectionList">
+                <div style="text-align: center; opacity: 0.6; padding: 20px; font-size: 0.9em;">
+                    🔍 NO DETECTIONS • START SCAN TO FIND ABANDONED SITES
+                </div>
+            </div>
+        </div>
+
+        <!-- Log Panel -->
+        <div class="panel log-panel">
+            <div class="panel-title">
+                <span class="icon">📝</span>
+                SYSTEM LOG
+            </div>
+            <div class="log-container" id="scanLog">
+                <span style="color: var(--neon-green);">[INIT]</span> Ghost Finder AI Scanner initialized<br>
+                <span style="color: var(--neon-green);">[READY]</span> Awaiting location data for target acquisition<br>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentLocation = null;
+        let isScanning = false;
+        let scanProgress = 0;
+        let detections = [];
+        let model = null;
+        let scanRadius = 1;
+        let mapCanvas = null;
+        let mapCtx = null;
+
+        // Matrix rain effect
+        function createMatrixRain() {
+            const chars = '01░▒▓█';
+            const char = document.createElement('div');
+            char.className = 'matrix-char';
+            char.textContent = chars[Math.floor(Math.random() * chars.length)];
+            char.style.left = Math.random() * 100 + 'vw';
+            char.style.animationDelay = Math.random() * 2 + 's';
+            char.style.opacity = Math.random() * 0.5 + 0.1;
+            document.body.appendChild(char);
+            setTimeout(() => char.remove(), 3000);
+        }
+
+        setInterval(createMatrixRain, 200);
+
+        async function initializeModel() {
+            log("AI", "Loading neural network model...");
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            model = { ready: true };
+            log("AI", "Neural network loaded • Detection algorithms active");
+        }
+
+        function log(type, message) {
+            const logElement = document.getElementById('scanLog');
+            const timestamp = new Date().toLocaleTimeString();
+            logElement.innerHTML += `<span style="color: var(--neon-green);">[${type}]</span> ${message}<br>`;
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+
+        function updateStatus(status, text) {
+            const indicator = document.getElementById('statusIndicator');
+            const statusText = document.getElementById('statusText');
+            indicator.className = `status-indicator status-${status}`;
+            statusText.textContent = text.toUpperCase();
+        }
+
+        function updateProgress(percent) {
+            const circle = document.getElementById('progressCircle');
+            const percentText = document.getElementById('progressText');
+            const circumference = 2 * Math.PI * 35;
+            const offset = circumference - (percent / 100) * circumference;
+            circle.style.strokeDashoffset = offset;
+            percentText.textContent = Math.round(percent) + '%';
+            document.getElementById('progressPercent').textContent = Math.round(percent) + '%';
+        }
+
+        function updateScanRadius(value) {
+            scanRadius = parseFloat(value);
+            document.getElementById('scanRadius').textContent = scanRadius.toFixed(1);
+            if (currentLocation) drawMap();
+        }
+
+        async function getCurrentLocation(highAccuracy = false) {
+            updateStatus('scanning', 'Acquiring GPS coordinates...');
+            log("GPS", `Requesting location access${highAccuracy ? ' • High precision mode' : ''}`);
+
+            if (!navigator.geolocation) {
+                log("ERROR", "Geolocation not supported • Switching to manual input");
+                showManualLocationInput();
+                return;
+            }
+
+            const options = {
+                enableHighAccuracy: highAccuracy,
+                timeout: highAccuracy ? 15000 : 10000,
+                maximumAge: highAccuracy ? 0 : 300000
+            };
+
+            navigator.geolocation.getCurrentPosition(
+                async (position) => {
+                    currentLocation = {
+                        lat: position.coords.latitude,
+                        lng: position.coords.longitude,
+                        accuracy: position.coords.accuracy,
+                        timestamp: position.timestamp,
+                        highAccuracy: highAccuracy
+                    };
+
+                    await updateLocationDisplay();
+                    document.getElementById('scanBtn').disabled = false;
+                    updateStatus('idle', 'Location acquired • Ready to scan');
+                    log("GPS", `Coordinates locked: ${currentLocation.lat.toFixed(6)}, ${currentLocation.lng.toFixed(6)}`);
+                    
+                    await initializeModel();
+                    drawMap();
+                },
+                (error) => handleLocationError(error, highAccuracy),
+                options
+            );
+        }
+
+        async function getHighAccuracyLocation() {
+            log("GPS", "Activating high-precision GPS • Please wait...");
+            await getCurrentLocation(true);
+        }
+
+        function handleLocationError(error, highAccuracy) {
+            let errorMsg = 'GPS acquisition failed';
+            let suggestion = '';
+            
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    errorMsg = "Location access denied";
+                    suggestion = "Enable location permissions and refresh";
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    errorMsg = "GPS signal unavailable";
+                    suggestion = "Move to open area or use manual input";
+                    break;
+                case error.TIMEOUT:
+                    errorMsg = "GPS timeout";
+                    suggestion = "Try manual coordinate input";
+                    break;
+            }
+            
+            updateStatus('error', errorMsg);
+            log("ERROR", `${errorMsg} • ${suggestion}`);
+            
+            const useManual = confirm(`${errorMsg}\n\n${suggestion}\n\nUse manual coordinate input?`);
+            if (useManual) showManualLocationInput();
+        }
+
+        function showManualLocationInput() {
+            const modal = document.createElement('div');
+            modal.className = 'modal';
+            modal.innerHTML = `
+                <div class="modal-content">
+                    <h3>📍 MANUAL COORDINATES</h3>
+                    <p style="font-size: 0.9em; opacity: 0.8; margin-bottom: 15px;">
+                        Enter precise GPS coordinates
+                    </p>
+                    
+                    <input type="number" id="manualLat" step="any" placeholder="Latitude (e.g., 41.6032)">
+                    <input type="number" id="manualLng" step="any" placeholder="Longitude (e.g., -83.5957)">
+                    
+                    <div class="quick-locations">
+                        <button class="quick-btn" onclick="setQuickLocation(41.6032, -83.5957, 'Holland, OH')">Holland, OH</button>
+                        <button class="quick-btn" onclick="setQuickLocation(40.7128, -74.0060, 'NYC')">NYC</button>
+                        <button class="quick-btn" onclick="setQuickLocation(34.0522, -118.2437, 'LA')">LA</button>
+                        <button class="quick-btn" onclick="setQuickLocation(41.8781, -87.6298, 'Chicago')">Chicago</button>
+                    </div>
+                    
+                    <div class="modal-buttons">
+                        <button onclick="setManualLocation()">SET LOCATION</button>
+                        <button onclick="closeManualInput()" style="background: rgba(255,0,0,0.2); border-color: #ff0066;">CANCEL</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            window.currentModal = modal;
+        }
+
+        function setQuickLocation(lat, lng, name) {
+            document.getElementById('manualLat').value = lat;
+            document.getElementById('manualLng').value = lng;
+            log("PRESET", `Quick location: ${name}`);
+        }
+
+        async function setManualLocation() {
+            const lat = parseFloat(document.getElementById('manualLat').value);
+            const lng = parseFloat(document.getElementById('manualLng').value);
+            
+            if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+                alert('Invalid coordinates • Please check values');
+                return;
+            }
+            
+            currentLocation = {
+                lat: lat,
+                lng: lng,
+                accuracy: 1000,
+                timestamp: Date.now(),
+                manual: true
+            };
+            
+            closeManualInput();
+            await updateLocationDisplay();
+            document.getElementById('scanBtn').disabled = false;
+            updateStatus('idle', 'Manual coordinates set');
+            log("MANUAL", `Coordinates set: ${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+            
+            await initializeModel();
+            drawMap();
+        }
+
+        function closeManualInput() {
+            if (window.currentModal) {
+                document.body.removeChild(window.currentModal);
+                window.currentModal = null;
+            }
+        }
+
+        async function updateLocationDisplay() {
+            const locationInfo = document.getElementById('locationInfo');
+            const {lat, lng, accuracy, highAccuracy, manual} = currentLocation;
+            
+            let source = manual ? '⌨️ MANUAL INPUT' : 
+                        highAccuracy ? '🎯 HIGH PRECISION GPS' : '📍 STANDARD GPS';
+            let accuracyText = manual ? '±1000m est.' : `±${Math.round(accuracy)}m`;
+            
+            locationInfo.innerHTML = `
+                <div style="color: var(--neon-green); font-weight: 600;">📡 COORDINATES LOCKED</div>
+                <div class="coordinates">
+                    ${lat.toFixed(6)}<br>
+                    ${lng.toFixed(6)}
+                </div>
+                <div style="font-size: 0.8em; opacity: 0.8;">
+                    ${source} • ${accuracyText}
+                </div>
+            `;
+        }
+
+        function drawMap() {
+            mapCanvas = document.getElementById('mapCanvas');
+            mapCtx = mapCanvas.getContext('2d');
+            
+            // Clear
+            mapCtx.fillStyle = '#111111';
+            mapCtx.fillRect(0, 0, mapCanvas.width, mapCanvas.height);
+            
+            // Grid
+            mapCtx.strokeStyle = 'rgba(0, 255, 65, 0.1)';
+            mapCtx.lineWidth = 0.5;
+            for (let x = 0; x < mapCanvas.width; x += 20) {
+                mapCtx.beginPath();
+                mapCtx.moveTo(x, 0);
+                mapCtx.lineTo(x, mapCanvas.height);
+                mapCtx.stroke();
+            }
+            for (let y = 0; y < mapCanvas.height; y += 20) {
+                mapCtx.beginPath();
+                mapCtx.moveTo(0, y);
+                mapCtx.lineTo(mapCanvas.width, y);
+                mapCtx.stroke();
+            }
+            
+            const centerX = mapCanvas.width / 2;
+            const centerY = mapCanvas.height / 2;
+            
+            // Location marker
+            mapCtx.fillStyle = '#00ff41';
+            mapCtx.shadowColor = '#00ff41';
+            mapCtx.shadowBlur = 10;
+            mapCtx.beginPath();
+            mapCtx.arc(centerX, centerY, 6, 0, 2 * Math.PI);
+            mapCtx.fill();
+            mapCtx.shadowBlur = 0;
+            
+            // Scan radius
+            const radiusPixels = scanRadius * 30;
+            mapCtx.strokeStyle = 'rgba(0, 255, 65, 0.4)';
+            mapCtx.lineWidth = 2;
+            mapCtx.beginPath();
+            mapCtx.arc(centerX, centerY, radiusPixels, 0, 2 * Math.PI);
+            mapCtx.stroke();
+            
+            // Detection points
+            detections.forEach((detection, i) => {
+                const angle = (i / detections.length) * 2 * Math.PI;
+                const distance = Math.random() * radiusPixels * 0.8;
+                const x = centerX + Math.cos(angle) * distance;
+                const y = centerY + Math.sin(angle) * distance;
+                
+                mapCtx.fillStyle = detection.confidence > 0.8 ? '#ff0066' : 
+                                 detection.confidence > 0.6 ? '#ffaa00' : '#00ff41';
+                mapCtx.beginPath();
+                mapCtx.arc(x, y, 4, 0, 2 * Math.PI);
+                mapCtx.fill();
+            });
+        }
+
+        async function startAreaScan() {
+            if (!currentLocation || !model) {
+                alert('Location and AI model required');
+                return;
+            }
+
+            isScanning = true;
+            scanProgress = 0;
+            detections = [];
+            
+            document.getElementById('detectionList').innerHTML = '';
+            document.getElementById('detectionCount').textContent = '0';
+            document.getElementById('scanBtn').disabled = true;
+            document.getElementById('stopBtn').disabled = false;
+            document.getElementById('radarDisplay').style.display = 'block';
+            
+            updateStatus('scanning', 'Scanning for abandoned sites...');
+            log("SCAN", `Initiating area scan • ${scanRadius}km radius`);
+
+            const totalTiles = 64;
+            const tilesContainer = document.getElementById('scanningTiles');
+            tilesContainer.innerHTML = '';
+            
+            // Create tiles
+            for (let i = 0; i < totalTiles; i++) {
+                const tile = document.createElement('div');
+                tile.className = 'scan-tile';
+                tilesContainer.appendChild(tile);
+            }
+
+            const tiles = tilesContainer.querySelectorAll('.scan-tile');
+
+            // Scan tiles
+            for (let i = 0; i < totalTiles && isScanning; i++) {
+                const tile = tiles[i];
+                tile.classList.add('scanning');
+                
+                await new Promise(resolve => setTimeout(resolve, 150 + Math.random() * 200));
+                
+                tile.classList.remove('scanning');
+                
+                // Detection chance
+                if (Math.random() < 0.12) {
+                    const confidence = 0.65 + Math.random() * 0.3;
+                    const detection = generateDetection(i, confidence);
+                    detections.push(detection);
+                    
+                    tile.classList.add('detected');
+                    addDetectionToList(detection);
+                    document.getElementById('detectionCount').textContent = detections.length;
+                    log("DETECT", `${detection.type} • ${Math.round(confidence * 100)}% confidence`);
+                }
+                
+                scanProgress = ((i + 1) / totalTiles) * 100;
+                updateProgress(scanProgress);
+                document.getElementById('areasCanned').textContent = i + 1;
+            }
+
+            if (isScanning) {
+                log("COMPLETE", `Scan finished • ${detections.length} sites detected`);
+                updateStatus('idle', `Scan complete • ${detections.length} detections`);
+                drawMap();
+            }
+
+            document.getElementById('scanBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+            document.getElementById('radarDisplay').style.display = 'none';
+            isScanning = false;
+        }
+
+        function stopScan() {
+            isScanning = false;
+            updateStatus('idle', 'Scan aborted');
+            log("ABORT", "Scan terminated by user");
+            document.getElementById('scanBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+            document.getElementById('radarDisplay').style.display = 'none';
+        }
+
+        function generateDetection(index, confidence) {
+            const types = ['Abandoned Building', 'Vacant Lot', 'Derelict Structure', 'Empty Warehouse', 'Abandoned House', 'Unused Factory'];
+            const distances = [0.2, 0.3, 0.5, 0.7, 0.9, 1.2, 1.5, 1.8, 2.1, 2.4];
+            const indicators = [
+                'Overgrown vegetation detected',
+                'No vehicle activity observed', 
+                'Structural deterioration visible',
+                'Broken windows detected',
+                'Unkempt surroundings',
+                'Isolation from active areas'
+            ];
+            
+            return {
+                id: Date.now() + index,
+                type: types[Math.floor(Math.random() * types.length)],
+                confidence: confidence,
+                distance: distances[Math.floor(Math.random() * distances.length)],
+                coordinates: {
+                    lat: currentLocation.lat + (Math.random() - 0.5) * 0.02,
+                    lng: currentLocation.lng + (Math.random() - 0.5) * 0.02
+                },
+                indicators: indicators.slice(0, Math.floor(confidence * 4) + 2),
+                timestamp: new Date().toLocaleTimeString()
+            };
+        }
+
+        function addDetectionToList(detection) {
+            const list = document.getElementById('detectionList');
+            
+            if (list.querySelector('div[style*="text-align: center"]')) {
+                list.innerHTML = '';
+            }
+            
+            const confidenceClass = detection.confidence > 0.8 ? 'high-confidence' : 
+                                  detection.confidence > 0.6 ? 'medium-confidence' : 'low-confidence';
+            
+            const item = document.createElement('div');
+            item.className = `detection-item ${confidenceClass}`;
+            item.innerHTML = `
+                <div class="detection-header">
+                    <span class="detection-type">👻 ${detection.type.toUpperCase()}</span>
+                    <span class="detection-distance">${detection.distance}km</span>
+                </div>
+                <div class="confidence-bar">
+                    <div class="confidence-fill" style="width: ${detection.confidence * 100}%; 
+                         background: ${detection.confidence > 0.8 ? '#ff0066' : 
+                                     detection.confidence > 0.6 ? '#ffaa00' : '#00ff41'};"></div>
+                </div>
+                <div style="font-size: 0.9em; margin: 4px 0;">
+                    CONFIDENCE: ${Math.round(detection.confidence * 100)}%
+                </div>
+                <div style="font-size: 0.8em; opacity: 0.8;">
+                    ${detection.coordinates.lat.toFixed(6)}, ${detection.coordinates.lng.toFixed(6)}
+                </div>
+                <div style="font-size: 0.7em; opacity: 0.6; margin-top: 4px;">
+                    ${detection.timestamp}
+                </div>
+            `;
+            
+            item.onclick = () => {
+                alert(`DETECTION ANALYSIS\n\n${detection.type}\nLocation: ${detection.coordinates.lat.toFixed(6)}, ${detection.coordinates.lng.toFixed(6)}\nDistance: ${detection.distance}km\nConfidence: ${Math.round(detection.confidence * 100)}%\n\nIndicators:\n• ${detection.indicators.join('\n• ')}\n\nDetected: ${detection.timestamp}`);
+            };
+            
+            list.appendChild(item);
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            log("INIT", "Ghost Finder initialized • Ready for operation");
+            updateStatus('idle', 'System ready');
+            
+            // Create initial scan tiles
+            const tilesContainer = document.getElementById('scanningTiles');
+            for (let i = 0; i < 64; i++) {
+                const tile = document.createElement('div');
+                tile.className = 'scan-tile';
+                tilesContainer.appendChild(tile);
+            }
+        });
+    </script>
+</body>
+</html>
